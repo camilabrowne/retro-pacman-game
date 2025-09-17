@@ -7,6 +7,7 @@ class AsymmetricPacmanGame {
         this.roomCode = null;
         this.peers = new Map();
         this.players = new Map();
+        this.minPlayers = 2;
         this.maxPlayers = 4;
 
         // Player roles
@@ -284,7 +285,6 @@ class AsymmetricPacmanGame {
         // Simulate joining by creating mock players
         setTimeout(() => {
             this.addPlayer('host123', 'Host', null);
-            this.addPlayer('player2', 'Player 2', null);
             this.addPlayer(this.playerId, 'You', null);
             this.updatePlayersList();
             this.updateStartButton();
@@ -312,7 +312,16 @@ class AsymmetricPacmanGame {
 
     assignRoles() {
         const playerIds = Array.from(this.players.keys());
-        const roles = [this.roles.PACMAN, this.roles.GHOST_RED, this.roles.GHOST_PINK, this.roles.GHOST_CYAN];
+        const playerCount = playerIds.length;
+
+        // Always have 1 Pacman, rest are ghosts
+        const roles = [this.roles.PACMAN];
+        const availableGhostRoles = [this.roles.GHOST_RED, this.roles.GHOST_PINK, this.roles.GHOST_CYAN];
+
+        // Add ghost roles based on player count (2-4 players = 1-3 ghosts)
+        for (let i = 0; i < playerCount - 1; i++) {
+            roles.push(availableGhostRoles[i]);
+        }
 
         // Shuffle roles randomly
         for (let i = roles.length - 1; i > 0; i--) {
@@ -337,7 +346,15 @@ class AsymmetricPacmanGame {
                     { x: 8, y: 10 },  // Left
                     { x: 10, y: 10 }  // Right
                 ];
-                const ghostIndex = index - 1; // Since first role is Pacman
+                let ghostIndex = 0;
+                // Count how many ghosts we've assigned so far
+                for (let i = 0; i < index; i++) {
+                    const prevPlayer = this.players.get(playerIds[i]);
+                    if (prevPlayer.role && prevPlayer.role.includes('ghost')) {
+                        ghostIndex++;
+                    }
+                }
+
                 if (ghostPositions[ghostIndex]) {
                     player.x = ghostPositions[ghostIndex].x;
                     player.y = ghostPositions[ghostIndex].y;
@@ -385,17 +402,21 @@ class AsymmetricPacmanGame {
 
     updateStartButton() {
         const startBtn = document.getElementById('start-multiplayer-btn');
-        if (this.players.size === this.maxPlayers) {
+
+        if (this.players.size >= this.minPlayers) {
             startBtn.style.display = 'block';
             startBtn.textContent = 'Start Game';
+            startBtn.disabled = false;
         } else {
             startBtn.style.display = 'block';
-            startBtn.textContent = `Waiting for players (${this.players.size}/${this.maxPlayers})`;
+            startBtn.textContent = `Waiting for players (${this.players.size}/${this.minPlayers} min)`;
             startBtn.disabled = true;
         }
 
-        // Enable button when we have 4 players
-        startBtn.disabled = this.players.size !== this.maxPlayers;
+        // Show current count and max
+        if (this.players.size >= this.minPlayers && this.players.size < this.maxPlayers) {
+            startBtn.textContent = `Start Game (${this.players.size}/${this.maxPlayers})`;
+        }
     }
 
     updatePlayersStatus() {
@@ -431,8 +452,13 @@ class AsymmetricPacmanGame {
     }
 
     startMultiplayerGame() {
-        if (this.players.size !== this.maxPlayers) {
-            alert(`Need exactly ${this.maxPlayers} players to start`);
+        if (this.players.size < this.minPlayers) {
+            alert(`Need at least ${this.minPlayers} players to start`);
+            return;
+        }
+
+        if (this.players.size > this.maxPlayers) {
+            alert(`Maximum ${this.maxPlayers} players allowed`);
             return;
         }
 
