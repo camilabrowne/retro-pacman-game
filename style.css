@@ -364,3 +364,243 @@ body::before {
     transform: scale(0.95);
     box-shadow: 0 0 5px #ffff00;
 }
+
+/* Multiplayer UI Styles */
+.multiplayer-lobby {
+    text-align: center;
+    padding: 20px;
+}
+
+.multiplayer-lobby h1 {
+    color: #ffff00;
+    font-size: 2.2em;
+    margin-bottom: 30px;
+    text-shadow:
+        0 0 10px #ffff00,
+        0 0 20px #ffff00,
+        2px 2px 0px #cc9900;
+    letter-spacing: 3px;
+    animation: glow-pulse 2s ease-in-out infinite alternate;
+}
+
+.lobby-content {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.game-mode-selection {
+    margin-bottom: 30px;
+}
+
+.mode-btn {
+    background: linear-gradient(145deg, #ffff00, #cccc00);
+    color: #000000;
+    border: 2px solid #ffffff;
+    padding: 15px 25px;
+    margin: 10px;
+    font-size: 0.9em;
+    border-radius: 0;
+    cursor: pointer;
+    font-family: 'Press Start 2P', cursive;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    box-shadow: 0 0 10px #ffff00;
+    display: inline-block;
+    min-width: 150px;
+}
+
+.mode-btn:hover {
+    background: linear-gradient(145deg, #ffffff, #ffff80);
+    color: #000000;
+    box-shadow: 0 0 20px #ffffff;
+    transform: scale(1.05);
+}
+
+.mode-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 5px #ffff00;
+}
+
+.small-btn {
+    background: linear-gradient(145deg, #0000ff, #0000cc);
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    padding: 8px 15px;
+    margin: 5px;
+    font-size: 0.6em;
+    border-radius: 0;
+    cursor: pointer;
+    font-family: 'Press Start 2P', cursive;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    box-shadow: 0 0 5px #0000ff;
+}
+
+.small-btn:hover {
+    background: linear-gradient(145deg, #4444ff, #0000ff);
+    box-shadow: 0 0 15px #4444ff;
+    transform: scale(1.05);
+}
+
+.room-controls {
+    margin-top: 20px;
+}
+
+.room-controls h3 {
+    color: #ffffff;
+    font-size: 0.8em;
+    margin-bottom: 15px;
+    text-shadow: 0 0 5px #ffffff;
+}
+
+.room-code {
+    background: linear-gradient(145deg, #0f0f23, #000000);
+    border: 3px solid #ffff00;
+    padding: 15px;
+    margin: 10px 0;
+    font-size: 1.5em;
+    color: #ffff00;
+    text-shadow: 0 0 10px #ffff00;
+    letter-spacing: 3px;
+    box-shadow: 0 0 15px rgba(255, 255, 0, 0.3);
+}
+
+.room-controls p {
+    color: #cccccc;
+    font-size: 0.5em;
+    margin-bottom: 15px;
+}
+
+#room-code-input {
+    background: linear-gradient(145deg, #0f0f23, #000000);
+    border: 2px solid #ffffff;
+    padding: 10px;
+    margin: 10px;
+    font-size: 1.2em;
+    color: #ffffff;
+    text-align: center;
+    font-family: 'Press Start 2P', cursive;
+    letter-spacing: 2px;
+    width: 200px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+#room-code-input:focus {
+    outline: none;
+    border-color: #ffff00;
+    box-shadow: 0 0 15px #ffff00;
+}
+
+.players-list {
+    margin: 20px 0;
+}
+
+#players-container {
+    background: linear-gradient(145deg, #0f0f23, #000000);
+    border: 2px solid #0000ff;
+    padding: 15px;
+    margin: 10px 0;
+    min-height: 60px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 255, 0.3);
+}
+
+.player-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    margin: 5px 0;
+    background: rgba(255, 255, 255, 0.1);
+    border-left: 4px solid;
+}
+
+.player-name {
+    font-size: 0.6em;
+    color: #ffffff;
+}
+
+.player-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+}
+
+.connection-status {
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(0, 0, 255, 0.2);
+    border: 2px solid #0000ff;
+}
+
+#connection-text {
+    color: #ffffff;
+    font-size: 0.7em;
+    animation: text-flash 0.5s ease-in-out infinite alternate;
+}
+
+.game-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.players-status {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.player-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid;
+    border-radius: 0;
+}
+
+.player-status-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.player-status-name {
+    font-size: 0.5em;
+    color: #ffffff;
+}
+
+/* Multiplayer Player Colors */
+.pacman-player1 { background-color: #ffff00 !important; }
+.pacman-player2 { background-color: #ff6b6b !important; }
+.pacman-player3 { background-color: #4ecdc4 !important; }
+.pacman-player4 { background-color: #45b7d1 !important; }
+
+/* Mobile responsiveness for multiplayer UI */
+@media (max-width: 600px) {
+    .mode-btn {
+        display: block;
+        width: 80%;
+        margin: 10px auto;
+    }
+
+    .game-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .players-status {
+        flex-direction: column;
+        align-items: center;
+    }
+}

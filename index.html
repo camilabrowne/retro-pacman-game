@@ -8,15 +8,64 @@
 </head>
 <body>
     <div class="game-container">
-        <div class="score-board">
-            <h1>PACMAN</h1>
-            <div class="score">Score: <span id="score">0</span></div>
-            <div class="lives">Lives: <span id="lives">3</span></div>
+        <!-- Multiplayer Lobby -->
+        <div class="multiplayer-lobby" id="multiplayer-lobby">
+            <h1>PACMAN MULTIPLAYER</h1>
+            <div class="lobby-content">
+                <div class="game-mode-selection">
+                    <button id="single-player-btn" class="mode-btn">Single Player</button>
+                    <button id="create-room-btn" class="mode-btn">Create Room</button>
+                    <button id="join-room-btn" class="mode-btn">Join Room</button>
+                </div>
+
+                <div class="room-controls" id="room-controls" style="display: none;">
+                    <div class="room-code-section" id="room-code-section" style="display: none;">
+                        <h3>Room Code:</h3>
+                        <div class="room-code" id="room-code">------</div>
+                        <p>Share this code with your friends!</p>
+                        <button id="copy-room-btn" class="small-btn">Copy Room Code</button>
+                    </div>
+
+                    <div class="join-room-section" id="join-room-section" style="display: none;">
+                        <h3>Enter Room Code:</h3>
+                        <input type="text" id="room-code-input" maxlength="6" placeholder="123456">
+                        <button id="connect-room-btn" class="small-btn">Connect</button>
+                    </div>
+
+                    <div class="players-list" id="players-list">
+                        <h3>Players:</h3>
+                        <div id="players-container"></div>
+                    </div>
+
+                    <button id="start-multiplayer-btn" class="mode-btn" style="display: none;">Start Game</button>
+                    <button id="back-to-lobby-btn" class="small-btn">Back</button>
+                </div>
+
+                <div class="connection-status" id="connection-status" style="display: none;">
+                    <p id="connection-text">Connecting...</p>
+                </div>
+            </div>
         </div>
-        <div class="game-board" id="game-board"></div>
-        <div class="game-over" id="game-over" style="display: none;">
-            <h2 id="game-over-text">Game Over!</h2>
-            <button id="restart-btn">Play Again</button>
+
+        <!-- Game UI -->
+        <div class="game-ui" id="game-ui" style="display: none;">
+            <div class="score-board">
+                <h1>PACMAN</h1>
+                <div class="game-info">
+                    <div class="score">Score: <span id="score">0</span></div>
+                    <div class="lives">Lives: <span id="lives">3</span></div>
+                    <div class="room-info" id="room-info" style="display: none;">
+                        Room: <span id="current-room">------</span>
+                    </div>
+                </div>
+                <div class="players-status" id="players-status"></div>
+            </div>
+            <div class="game-board" id="game-board"></div>
+            <div class="game-over" id="game-over" style="display: none;">
+                <h2 id="game-over-text">Game Over!</h2>
+                <button id="restart-btn">Play Again</button>
+                <button id="back-to-menu-btn">Back to Menu</button>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
