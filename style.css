@@ -195,7 +195,7 @@ body::before {
     border-radius: 50%;
     position: relative;
     z-index: 10;
-    animation: pacman-chomp 0.25s infinite;
+    animation: pacman-chomp 0.4s infinite;
     width: 20px;
     height: 20px;
     margin: 1px;
@@ -203,6 +203,24 @@ body::before {
         0 0 8px #ffff00,
         inset -2px -2px 0px #cccc00;
     border: 1px solid #ffff44;
+    transition: transform 0.1s ease;
+}
+
+/* Pacman directional rotations */
+.pacman.facing-right {
+    transform: rotate(0deg);
+}
+
+.pacman.facing-down {
+    transform: rotate(90deg);
+}
+
+.pacman.facing-left {
+    transform: rotate(180deg);
+}
+
+.pacman.facing-up {
+    transform: rotate(270deg);
 }
 
 @keyframes pacman-chomp {
@@ -578,6 +596,20 @@ body::before {
 .player-status-name {
     font-size: 0.5em;
     color: #ffffff;
+}
+
+.role-info {
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(255, 255, 0, 0.1);
+    border: 1px solid #ffff00;
+}
+
+.role-info p {
+    color: #ffff00;
+    font-size: 0.4em;
+    margin: 5px 0;
+    text-shadow: 0 0 3px #ffff00;
 }
 
 /* Multiplayer Player Colors */

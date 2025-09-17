@@ -1,5 +1,5 @@
-// Multiplayer Pacman Game with WebRTC
-class MultiplayerPacmanGame {
+// 4-Player Asymmetric Pacman Game: 1 Pacman vs 3 Ghost Players
+class AsymmetricPacmanGame {
     constructor() {
         this.isMultiplayer = false;
         this.isHost = false;
@@ -7,7 +7,15 @@ class MultiplayerPacmanGame {
         this.roomCode = null;
         this.peers = new Map();
         this.players = new Map();
-        this.playerColors = ['#ffff00', '#ff6b6b', '#4ecdc4', '#45b7d1'];
+        this.maxPlayers = 4;
+
+        // Player roles
+        this.roles = {
+            PACMAN: 'pacman',
+            GHOST_RED: 'ghost-red',
+            GHOST_PINK: 'ghost-pink',
+            GHOST_CYAN: 'ghost-cyan'
+        };
 
         // Game elements
         this.gameBoard = document.getElementById('game-board');
@@ -28,6 +36,7 @@ class MultiplayerPacmanGame {
         this.score = 0;
         this.lives = 3;
         this.gameRunning = false;
+        this.gameWinner = null;
 
         // Game board layout
         this.board = [
@@ -54,16 +63,10 @@ class MultiplayerPacmanGame {
             [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
         ];
 
-        this.ghosts = [
-            { x: 9, y: 9, direction: 'up', color: 'red', scared: false, scaredTimer: 0 },
-            { x: 8, y: 10, direction: 'left', color: 'pink', scared: false, scaredTimer: 0 },
-            { x: 10, y: 10, direction: 'right', color: 'cyan', scared: false, scaredTimer: 0 },
-            { x: 9, y: 10, direction: 'down', color: 'orange', scared: false, scaredTimer: 0 }
-        ];
-
         this.totalPellets = 0;
         this.pelletsEaten = 0;
         this.gameLoopId = null;
+        this.powerPelletTimer = 0;
 
         // Initialize the game
         this.initGame();
@@ -186,7 +189,6 @@ class MultiplayerPacmanGame {
         document.getElementById('room-controls').style.display = 'block';
         document.getElementById('room-code-section').style.display = 'block';
         document.getElementById('join-room-section').style.display = 'none';
-        document.getElementById('start-multiplayer-btn').style.display = 'block';
 
         this.roomCode = this.generateRoomCode();
         this.roomCodeElement.textContent = this.roomCode;
@@ -194,8 +196,9 @@ class MultiplayerPacmanGame {
         this.isMultiplayer = true;
 
         // Add host as first player
-        this.addPlayer(this.playerId, 'Host (You)', 0);
+        this.addPlayer(this.playerId, 'Host (You)', null);
         this.updatePlayersList();
+        this.updateStartButton();
     }
 
     showJoinRoom() {
@@ -230,6 +233,7 @@ class MultiplayerPacmanGame {
         this.isHost = false;
         this.roomCode = null;
         this.gameRunning = false;
+        this.gameWinner = null;
 
         if (this.gameLoopId) {
             clearTimeout(this.gameLoopId);
@@ -251,6 +255,13 @@ class MultiplayerPacmanGame {
 
     setupSinglePlayerGame() {
         this.pacman = { x: 9, y: 15, direction: 'right' };
+        // Traditional AI ghosts for single player
+        this.ghosts = [
+            { x: 9, y: 9, direction: 'up', color: 'red', scared: false, scaredTimer: 0 },
+            { x: 8, y: 10, direction: 'left', color: 'pink', scared: false, scaredTimer: 0 },
+            { x: 10, y: 10, direction: 'right', color: 'cyan', scared: false, scaredTimer: 0 }
+        ];
+
         this.createBoard();
         this.countPellets();
         this.updateScore();
@@ -270,31 +281,70 @@ class MultiplayerPacmanGame {
         document.getElementById('connection-status').style.display = 'block';
         document.getElementById('connection-text').textContent = 'Connecting to room...';
 
-        // In a real implementation, you'd use a signaling server
-        // For now, we'll simulate joining by creating a mock connection
+        // Simulate joining by creating mock players
         setTimeout(() => {
-            this.addPlayer(this.playerId, 'You', this.players.size);
-            this.addPlayer('host123', 'Host', 0);
+            this.addPlayer('host123', 'Host', null);
+            this.addPlayer('player2', 'Player 2', null);
+            this.addPlayer(this.playerId, 'You', null);
             this.updatePlayersList();
+            this.updateStartButton();
             document.getElementById('connection-status').style.display = 'none';
             document.getElementById('room-controls').style.display = 'block';
         }, 2000);
     }
 
-    addPlayer(playerId, name, colorIndex) {
+    addPlayer(playerId, name, role) {
         const player = {
             id: playerId,
             name: name,
-            color: this.playerColors[colorIndex % this.playerColors.length],
-            colorIndex: colorIndex,
+            role: role,
             x: 9,
             y: 15,
             direction: 'right',
             score: 0,
-            lives: 3
+            lives: 3,
+            scared: false,
+            scaredTimer: 0
         };
 
         this.players.set(playerId, player);
+    }
+
+    assignRoles() {
+        const playerIds = Array.from(this.players.keys());
+        const roles = [this.roles.PACMAN, this.roles.GHOST_RED, this.roles.GHOST_PINK, this.roles.GHOST_CYAN];
+
+        // Shuffle roles randomly
+        for (let i = roles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [roles[i], roles[j]] = [roles[j], roles[i]];
+        }
+
+        // Assign roles to players
+        playerIds.forEach((playerId, index) => {
+            const player = this.players.get(playerId);
+            player.role = roles[index];
+
+            // Set starting positions based on role
+            if (player.role === this.roles.PACMAN) {
+                player.x = 9;
+                player.y = 15;
+                player.lives = 3;
+            } else {
+                // Ghost starting positions
+                const ghostPositions = [
+                    { x: 9, y: 9 },   // Center
+                    { x: 8, y: 10 },  // Left
+                    { x: 10, y: 10 }  // Right
+                ];
+                const ghostIndex = index - 1; // Since first role is Pacman
+                if (ghostPositions[ghostIndex]) {
+                    player.x = ghostPositions[ghostIndex].x;
+                    player.y = ghostPositions[ghostIndex].y;
+                }
+                player.lives = 1; // Ghosts have 1 life
+            }
+        });
     }
 
     updatePlayersList() {
@@ -304,15 +354,48 @@ class MultiplayerPacmanGame {
         this.players.forEach(player => {
             const playerItem = document.createElement('div');
             playerItem.className = 'player-item';
-            playerItem.style.borderLeftColor = player.color;
+
+            let roleText = player.role ? player.role.replace('-', ' ').toUpperCase() : 'Waiting...';
+            let roleColor = '#ffffff';
+
+            if (player.role === this.roles.PACMAN) {
+                roleColor = '#ffff00';
+            } else if (player.role && player.role.includes('ghost')) {
+                const colorMap = {
+                    'ghost-red': '#ff0000',
+                    'ghost-pink': '#ffb6c1',
+                    'ghost-cyan': '#00ffff'
+                };
+                roleColor = colorMap[player.role] || '#ffffff';
+            }
+
+            playerItem.style.borderLeftColor = roleColor;
 
             playerItem.innerHTML = `
-                <span class="player-name">${player.name}</span>
-                <div class="player-color" style="background-color: ${player.color}"></div>
+                <div>
+                    <span class="player-name">${player.name}</span>
+                    <div style="font-size: 0.4em; color: ${roleColor};">${roleText}</div>
+                </div>
+                <div class="player-color" style="background-color: ${roleColor}"></div>
             `;
 
             container.appendChild(playerItem);
         });
+    }
+
+    updateStartButton() {
+        const startBtn = document.getElementById('start-multiplayer-btn');
+        if (this.players.size === this.maxPlayers) {
+            startBtn.style.display = 'block';
+            startBtn.textContent = 'Start Game';
+        } else {
+            startBtn.style.display = 'block';
+            startBtn.textContent = `Waiting for players (${this.players.size}/${this.maxPlayers})`;
+            startBtn.disabled = true;
+        }
+
+        // Enable button when we have 4 players
+        startBtn.disabled = this.players.size !== this.maxPlayers;
     }
 
     updatePlayersStatus() {
@@ -322,11 +405,25 @@ class MultiplayerPacmanGame {
         this.players.forEach(player => {
             const statusItem = document.createElement('div');
             statusItem.className = 'player-status';
-            statusItem.style.borderColor = player.color;
 
+            let roleColor = '#ffffff';
+            if (player.role === this.roles.PACMAN) {
+                roleColor = '#ffff00';
+            } else if (player.role && player.role.includes('ghost')) {
+                const colorMap = {
+                    'ghost-red': '#ff0000',
+                    'ghost-pink': '#ffb6c1',
+                    'ghost-cyan': '#00ffff'
+                };
+                roleColor = colorMap[player.role] || '#ffffff';
+            }
+
+            statusItem.style.borderColor = roleColor;
+
+            const roleIcon = player.role === this.roles.PACMAN ? '🟡' : '👻';
             statusItem.innerHTML = `
-                <div class="player-status-color" style="background-color: ${player.color}"></div>
-                <span class="player-status-name">${player.name}: ${player.score}</span>
+                <div class="player-status-color" style="background-color: ${roleColor}"></div>
+                <span class="player-status-name">${roleIcon} ${player.name}: ${player.score}</span>
             `;
 
             container.appendChild(statusItem);
@@ -334,34 +431,18 @@ class MultiplayerPacmanGame {
     }
 
     startMultiplayerGame() {
-        if (this.players.size < 1) {
-            alert('Need at least 1 player to start');
+        if (this.players.size !== this.maxPlayers) {
+            alert(`Need exactly ${this.maxPlayers} players to start`);
             return;
         }
 
+        this.assignRoles();
         this.setupMultiplayerGame();
         this.showGame();
         this.startGame();
     }
 
     setupMultiplayerGame() {
-        // Set up starting positions for each player
-        const startPositions = [
-            { x: 9, y: 15 },
-            { x: 1, y: 15 },
-            { x: 17, y: 15 },
-            { x: 9, y: 1 }
-        ];
-
-        let posIndex = 0;
-        this.players.forEach(player => {
-            const pos = startPositions[posIndex % startPositions.length];
-            player.x = pos.x;
-            player.y = pos.y;
-            player.direction = 'right';
-            posIndex++;
-        });
-
         this.createBoard();
         this.countPellets();
         this.updateScore();
@@ -419,8 +500,8 @@ class MultiplayerPacmanGame {
 
     renderEntities() {
         // Clear previous entities
-        document.querySelectorAll('.pacman, .pacman-player1, .pacman-player2, .pacman-player3, .pacman-player4, .ghost, .ghost-red, .ghost-pink, .ghost-cyan, .ghost-orange, .ghost-scared').forEach(el => {
-            el.classList.remove('pacman', 'pacman-player1', 'pacman-player2', 'pacman-player3', 'pacman-player4', 'ghost', 'ghost-red', 'ghost-pink', 'ghost-cyan', 'ghost-orange', 'ghost-scared');
+        document.querySelectorAll('.pacman, .ghost, .ghost-red, .ghost-pink, .ghost-cyan, .ghost-orange, .ghost-scared, .facing-up, .facing-down, .facing-left, .facing-right').forEach(el => {
+            el.classList.remove('pacman', 'ghost', 'ghost-red', 'ghost-pink', 'ghost-cyan', 'ghost-orange', 'ghost-scared', 'facing-up', 'facing-down', 'facing-left', 'facing-right');
         });
 
         if (this.isMultiplayer) {
@@ -428,28 +509,33 @@ class MultiplayerPacmanGame {
             this.players.forEach(player => {
                 const playerCell = document.getElementById(`cell-${player.x}-${player.y}`);
                 if (playerCell) {
-                    playerCell.classList.add('pacman', `pacman-player${player.colorIndex + 1}`);
+                    if (player.role === this.roles.PACMAN) {
+                        playerCell.classList.add('pacman', `facing-${player.direction}`);
+                    } else if (player.role && player.role.includes('ghost')) {
+                        const ghostClass = player.scared && player.scaredTimer > 0 ? 'ghost-scared' : player.role;
+                        playerCell.classList.add('ghost', ghostClass);
+                    }
                 }
             });
         } else {
             // Render single player Pacman
             const pacmanCell = document.getElementById(`cell-${this.pacman.x}-${this.pacman.y}`);
             if (pacmanCell) {
-                pacmanCell.classList.add('pacman');
+                pacmanCell.classList.add('pacman', `facing-${this.pacman.direction}`);
             }
-        }
 
-        // Render Ghosts
-        this.ghosts.forEach(ghost => {
-            const ghostCell = document.getElementById(`cell-${ghost.x}-${ghost.y}`);
-            if (ghostCell) {
-                if (ghost.scared && ghost.scaredTimer > 0) {
-                    ghostCell.classList.add('ghost', 'ghost-scared');
-                } else {
-                    ghostCell.classList.add('ghost', `ghost-${ghost.color}`);
+            // Render AI ghosts
+            this.ghosts.forEach(ghost => {
+                const ghostCell = document.getElementById(`cell-${ghost.x}-${ghost.y}`);
+                if (ghostCell) {
+                    if (ghost.scared && ghost.scaredTimer > 0) {
+                        ghostCell.classList.add('ghost', 'ghost-scared');
+                    } else {
+                        ghostCell.classList.add('ghost', `ghost-${ghost.color}`);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     startGame() {
@@ -461,12 +547,9 @@ class MultiplayerPacmanGame {
         if (!this.gameRunning) return;
 
         if (this.isMultiplayer) {
-            this.moveMultiplayerPacman();
+            this.moveMultiplayerEntities();
         } else {
             this.movePacman();
-        }
-
-        if (this.isHost || !this.isMultiplayer) {
             this.moveGhosts();
         }
 
@@ -474,22 +557,32 @@ class MultiplayerPacmanGame {
         this.updateScaredTimers();
         this.renderEntities();
 
-        if (this.pelletsEaten >= this.totalPellets) {
+        // Check win conditions
+        if (this.isMultiplayer) {
+            this.checkMultiplayerWinConditions();
+        } else if (this.pelletsEaten >= this.totalPellets) {
             this.winGame();
             return;
         }
 
-        this.gameLoopId = setTimeout(() => this.gameLoop(), 200);
+        this.gameLoopId = setTimeout(() => this.gameLoop(), 300); // Slower speed: 300ms instead of 200ms
     }
 
-    moveMultiplayerPacman() {
-        const currentPlayer = this.players.get(this.playerId);
-        if (!currentPlayer) return;
+    moveMultiplayerEntities() {
+        this.players.forEach(player => {
+            if (player.role === this.roles.PACMAN) {
+                this.moveMultiplayerPacman(player);
+            } else if (player.role && player.role.includes('ghost')) {
+                this.moveMultiplayerGhost(player);
+            }
+        });
+    }
 
-        let newX = currentPlayer.x;
-        let newY = currentPlayer.y;
+    moveMultiplayerPacman(pacmanPlayer) {
+        let newX = pacmanPlayer.x;
+        let newY = pacmanPlayer.y;
 
-        switch(currentPlayer.direction) {
+        switch(pacmanPlayer.direction) {
             case 'up': newY--; break;
             case 'down': newY++; break;
             case 'left': newX--; break;
@@ -502,28 +595,29 @@ class MultiplayerPacmanGame {
 
         // Check boundaries and walls
         if (newY >= 0 && newY < this.board.length && this.board[newY][newX] !== 1) {
-            currentPlayer.x = newX;
-            currentPlayer.y = newY;
+            pacmanPlayer.x = newX;
+            pacmanPlayer.y = newY;
 
-            // Only the host handles pellet collection
-            if (this.isHost && this.board[newY][newX] === 0) {
+            // Handle pellet collection
+            if (this.board[newY][newX] === 0) {
                 this.board[newY][newX] = 3;
-                currentPlayer.score += 10;
+                pacmanPlayer.score += 10;
                 this.pelletsEaten++;
-                this.updateScore();
 
                 const cell = document.getElementById(`cell-${newX}-${newY}`);
                 cell.classList.remove('pellet');
-            } else if (this.isHost && this.board[newY][newX] === 2) {
+            } else if (this.board[newY][newX] === 2) {
                 this.board[newY][newX] = 3;
-                currentPlayer.score += 50;
+                pacmanPlayer.score += 50;
                 this.pelletsEaten++;
-                this.updateScore();
+                this.powerPelletTimer = 100; // 30 seconds at 300ms intervals
 
-                // Power pellet - scare ghosts
-                this.ghosts.forEach(ghost => {
-                    ghost.scared = true;
-                    ghost.scaredTimer = 100;
+                // Scare all ghost players
+                this.players.forEach(player => {
+                    if (player.role && player.role.includes('ghost')) {
+                        player.scared = true;
+                        player.scaredTimer = this.powerPelletTimer;
+                    }
                 });
 
                 const cell = document.getElementById(`cell-${newX}-${newY}`);
@@ -532,6 +626,29 @@ class MultiplayerPacmanGame {
         }
 
         this.updatePlayersStatus();
+        this.updateScore();
+    }
+
+    moveMultiplayerGhost(ghostPlayer) {
+        let newX = ghostPlayer.x;
+        let newY = ghostPlayer.y;
+
+        switch(ghostPlayer.direction) {
+            case 'up': newY--; break;
+            case 'down': newY++; break;
+            case 'left': newX--; break;
+            case 'right': newX++; break;
+        }
+
+        // Handle tunnel effect
+        if (newX < 0) newX = this.board[0].length - 1;
+        if (newX >= this.board[0].length) newX = 0;
+
+        // Check boundaries and walls
+        if (newY >= 0 && newY < this.board.length && this.board[newY][newX] !== 1) {
+            ghostPlayer.x = newX;
+            ghostPlayer.y = newY;
+        }
     }
 
     movePacman() {
@@ -595,12 +712,7 @@ class MultiplayerPacmanGame {
             if (ghost.scared && ghost.scaredTimer > 0) {
                 bestMove = this.getRandomMove(possibleMoves);
             } else {
-                if (this.isMultiplayer) {
-                    // Target the closest player
-                    bestMove = this.getBestMoveTowardsClosestPlayer(ghost, possibleMoves);
-                } else {
-                    bestMove = this.getBestMoveTowardsPacman(ghost, possibleMoves);
-                }
+                bestMove = this.getBestMoveTowardsPacman(ghost, possibleMoves);
             }
 
             ghost.direction = bestMove;
@@ -608,25 +720,6 @@ class MultiplayerPacmanGame {
             ghost.x = newPos.x;
             ghost.y = newPos.y;
         });
-    }
-
-    getBestMoveTowardsClosestPlayer(ghost, possibleMoves) {
-        let bestMove = possibleMoves[0];
-        let shortestDistance = Infinity;
-
-        this.players.forEach(player => {
-            possibleMoves.forEach(move => {
-                const newPos = this.getNewPosition(ghost.x, ghost.y, move);
-                const distance = Math.abs(newPos.x - player.x) + Math.abs(newPos.y - player.y);
-
-                if (distance < shortestDistance) {
-                    shortestDistance = distance;
-                    bestMove = move;
-                }
-            });
-        });
-
-        return bestMove;
     }
 
     getPossibleMoves(x, y) {
@@ -696,28 +789,37 @@ class MultiplayerPacmanGame {
 
     checkCollisions() {
         if (this.isMultiplayer) {
-            // Check collisions for all players
-            this.players.forEach(player => {
-                this.ghosts.forEach(ghost => {
-                    if (ghost.x === player.x && ghost.y === player.y) {
-                        if (ghost.scared && ghost.scaredTimer > 0) {
-                            // Eat ghost
-                            player.score += 200;
-                            ghost.scared = false;
-                            ghost.scaredTimer = 0;
-                            ghost.x = 9;
-                            ghost.y = 9;
-                        } else {
-                            // Player dies
-                            player.lives--;
-                            this.resetPlayerPosition(player);
+            const pacmanPlayer = Array.from(this.players.values()).find(p => p.role === this.roles.PACMAN);
+            if (!pacmanPlayer) return;
 
-                            if (player.lives <= 0) {
-                                // Player eliminated, but game continues for others
-                            }
+            this.players.forEach(player => {
+                if (player.role && player.role.includes('ghost') &&
+                    player.x === pacmanPlayer.x && player.y === pacmanPlayer.y) {
+
+                    if (player.scared && player.scaredTimer > 0) {
+                        // Pacman eats ghost
+                        pacmanPlayer.score += 200;
+                        player.scared = false;
+                        player.scaredTimer = 0;
+                        // Reset ghost to starting position
+                        const ghostPositions = [
+                            { x: 9, y: 9 },
+                            { x: 8, y: 10 },
+                            { x: 10, y: 10 }
+                        ];
+                        const ghostIndex = player.role === this.roles.GHOST_RED ? 0 :
+                                          player.role === this.roles.GHOST_PINK ? 1 : 2;
+                        if (ghostPositions[ghostIndex]) {
+                            player.x = ghostPositions[ghostIndex].x;
+                            player.y = ghostPositions[ghostIndex].y;
                         }
+                    } else {
+                        // Ghost catches Pacman
+                        this.gameWinner = 'ghosts';
+                        this.gameOver();
+                        return;
                     }
-                });
+                }
             });
         } else {
             // Single player collision check
@@ -745,21 +847,38 @@ class MultiplayerPacmanGame {
         }
     }
 
-    resetPlayerPosition(player) {
-        player.x = 9;
-        player.y = 15;
-        player.direction = 'right';
+    updateScaredTimers() {
+        if (this.powerPelletTimer > 0) {
+            this.powerPelletTimer--;
+        }
+
+        if (this.isMultiplayer) {
+            this.players.forEach(player => {
+                if (player.scared && player.scaredTimer > 0) {
+                    player.scaredTimer--;
+                    if (player.scaredTimer <= 0) {
+                        player.scared = false;
+                    }
+                }
+            });
+        } else {
+            this.ghosts.forEach(ghost => {
+                if (ghost.scared && ghost.scaredTimer > 0) {
+                    ghost.scaredTimer--;
+                    if (ghost.scaredTimer <= 0) {
+                        ghost.scared = false;
+                    }
+                }
+            });
+        }
     }
 
-    updateScaredTimers() {
-        this.ghosts.forEach(ghost => {
-            if (ghost.scared && ghost.scaredTimer > 0) {
-                ghost.scaredTimer--;
-                if (ghost.scaredTimer <= 0) {
-                    ghost.scared = false;
-                }
-            }
-        });
+    checkMultiplayerWinConditions() {
+        // Pacman wins by collecting all pellets
+        if (this.pelletsEaten >= this.totalPellets) {
+            this.gameWinner = 'pacman';
+            this.winGame();
+        }
     }
 
     resetPositions() {
@@ -767,16 +886,17 @@ class MultiplayerPacmanGame {
         this.pacman.y = 15;
         this.pacman.direction = 'right';
 
-        this.ghosts[0] = { x: 9, y: 9, direction: 'up', color: 'red', scared: false, scaredTimer: 0 };
-        this.ghosts[1] = { x: 8, y: 10, direction: 'left', color: 'pink', scared: false, scaredTimer: 0 };
-        this.ghosts[2] = { x: 10, y: 10, direction: 'right', color: 'cyan', scared: false, scaredTimer: 0 };
-        this.ghosts[3] = { x: 9, y: 10, direction: 'down', color: 'orange', scared: false, scaredTimer: 0 };
+        if (this.ghosts) {
+            this.ghosts[0] = { x: 9, y: 9, direction: 'up', color: 'red', scared: false, scaredTimer: 0 };
+            this.ghosts[1] = { x: 8, y: 10, direction: 'left', color: 'pink', scared: false, scaredTimer: 0 };
+            this.ghosts[2] = { x: 10, y: 10, direction: 'right', color: 'cyan', scared: false, scaredTimer: 0 };
+        }
     }
 
     updateScore() {
         if (this.isMultiplayer) {
-            const currentPlayer = this.players.get(this.playerId);
-            this.scoreElement.textContent = currentPlayer ? currentPlayer.score : 0;
+            const pacmanPlayer = Array.from(this.players.values()).find(p => p.role === this.roles.PACMAN);
+            this.scoreElement.textContent = pacmanPlayer ? pacmanPlayer.score : 0;
         } else {
             this.scoreElement.textContent = this.score;
         }
@@ -784,8 +904,8 @@ class MultiplayerPacmanGame {
 
     updateLives() {
         if (this.isMultiplayer) {
-            const currentPlayer = this.players.get(this.playerId);
-            this.livesElement.textContent = currentPlayer ? currentPlayer.lives : 0;
+            const pacmanPlayer = Array.from(this.players.values()).find(p => p.role === this.roles.PACMAN);
+            this.livesElement.textContent = pacmanPlayer ? pacmanPlayer.lives : 0;
         } else {
             this.livesElement.textContent = this.lives;
         }
@@ -796,7 +916,17 @@ class MultiplayerPacmanGame {
         if (this.gameLoopId) {
             clearTimeout(this.gameLoopId);
         }
-        this.gameOverText.textContent = 'Game Over!';
+
+        if (this.isMultiplayer) {
+            if (this.gameWinner === 'ghosts') {
+                this.gameOverText.textContent = 'Ghosts Win!';
+            } else {
+                this.gameOverText.textContent = 'Game Over!';
+            }
+        } else {
+            this.gameOverText.textContent = 'Game Over!';
+        }
+
         this.gameOverElement.style.display = 'block';
     }
 
@@ -805,7 +935,13 @@ class MultiplayerPacmanGame {
         if (this.gameLoopId) {
             clearTimeout(this.gameLoopId);
         }
-        this.gameOverText.textContent = 'You Win!';
+
+        if (this.isMultiplayer && this.gameWinner === 'pacman') {
+            this.gameOverText.textContent = 'Pacman Wins!';
+        } else {
+            this.gameOverText.textContent = 'You Win!';
+        }
+
         this.gameOverElement.style.display = 'block';
     }
 
@@ -814,6 +950,9 @@ class MultiplayerPacmanGame {
         if (this.gameLoopId) {
             clearTimeout(this.gameLoopId);
         }
+
+        this.gameWinner = null;
+        this.powerPelletTimer = 0;
 
         if (this.isMultiplayer) {
             this.setupMultiplayerGame();
@@ -861,5 +1000,5 @@ class MultiplayerPacmanGame {
 
 // Start the game when page loads
 window.addEventListener('DOMContentLoaded', () => {
-    new MultiplayerPacmanGame();
+    new AsymmetricPacmanGame();
 });
