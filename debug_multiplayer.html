@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #000; color: #0f0; }
+        .window { border: 1px solid #0f0; padding: 10px; margin: 10px 0; }
+        .log { background: #111; padding: 10px; max-height: 200px; overflow-y: scroll; }
+        button { padding: 5px 10px; margin: 5px; }
+        input { padding: 5px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Multiplayer Room Debug</h1>
+
+    <div class="window">
+        <h2>Player 1 (Host)</h2>
+        <button onclick="createRoom()">Create Room</button>
+        <div id="player1-room">Room Code: <span id="room-code-1">--</span></div>
+        <div id="player1-log" class="log">Waiting for action...</div>
+    </div>
+
+    <div class="window">
+        <h2>Player 2 (Joiner)</h2>
+        <input type="text" id="join-code" placeholder="Enter room code" maxlength="6">
+        <button onclick="joinRoom()">Join Room</button>
+        <div id="player2-log" class="log">Waiting for action...</div>
+    </div>
+
+    <div class="window">
+        <h2>localStorage Debug</h2>
+        <button onclick="showLocalStorage()">Show All Rooms</button>
+        <button onclick="clearAllRooms()">Clear All Rooms</button>
+        <div id="storage-log" class="log"></div>
+    </div>
+
+    <script>
+        let player1Id = 'player_' + Math.random().toString(36).substr(2, 8);
+        let player2Id = 'player_' + Math.random().toString(36).substr(2, 8);
+        let currentRoomCode = null;
+
+        function log(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function generateRoomCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        function getRoomData(roomCode) {
+            try {
+                const data = localStorage.getItem(`pacman_room_${roomCode}`);
+                return data ? JSON.parse(data) : null;
+            } catch (error) {
+                console.error('Error reading room data:', error);
+                return null;
+            }
+        }
+
+        function saveRoomData(roomCode, data) {
+            try {
+                localStorage.setItem(`pacman_room_${roomCode}`, JSON.stringify(data));
+            } catch (error) {
+                console.error('Error saving room data:', error);
+            }
+        }
+
+        function createRoom() {
+            currentRoomCode = generateRoomCode();
+            document.getElementById('room-code-1').textContent = currentRoomCode;
+            document.getElementById('join-code').value = currentRoomCode;
+
+            const roomData = {
+                roomCode: currentRoomCode,
+                host: player1Id,
+                created: Date.now(),
+                gameStarted: false,
+                players: {}
+            };
+
+            // Add host as first player
+            roomData.players[player1Id] = {
+                id: player1Id,
+                name: 'Host (Player 1)',
+                role: null,
+                x: 9,
+                y: 15,
+                direction: 'right',
+                score: 0,
+                lives: 3,
+                scared: false,
+                scaredTimer: 0,
+                lastUpdate: Date.now()
+            };
+
+            saveRoomData(currentRoomCode, roomData);
+            log('player1-log', `Room created: ${currentRoomCode}`);
+            log('player1-log', `Host player added: ${player1Id}`);
+
+            showRoomStatus('player1-log');
+        }
+
+        function joinRoom() {
+            const roomCode = document.getElementById('join-code').value;
+            if (!roomCode || roomCode.length !== 6) {
+                log('player2-log', 'ERROR: Invalid room code');
+                return;
+            }
+
+            const roomData = getRoomData(roomCode);
+            if (!roomData) {
+                log('player2-log', 'ERROR: Room not found');
+                return;
+            }
+
+            log('player2-log', `Found room: ${roomCode}`);
+            log('player2-log', `Current players: ${Object.keys(roomData.players).length}`);
+
+            // Add player 2 to the room
+            roomData.players[player2Id] = {
+                id: player2Id,
+                name: 'Player 2',
+                role: null,
+                x: 9,
+                y: 15,
+                direction: 'right',
+                score: 0,
+                lives: 3,
+                scared: false,
+                scaredTimer: 0,
+                lastUpdate: Date.now()
+            };
+
+            saveRoomData(roomCode, roomData);
+            log('player2-log', `Successfully joined room: ${roomCode}`);
+            log('player2-log', `Player 2 added: ${player2Id}`);
+
+            showRoomStatus('player2-log');
+
+            // Simulate what player 1 should see
+            log('player1-log', 'Player 2 joined the room!');
+            showRoomStatus('player1-log');
+        }
+
+        function showRoomStatus(logId) {
+            if (!currentRoomCode) return;
+
+            const roomData = getRoomData(currentRoomCode);
+            if (!roomData) {
+                log(logId, 'ERROR: Room data not found');
+                return;
+            }
+
+            log(logId, `Room Status:`);
+            log(logId, `- Room Code: ${roomData.roomCode}`);
+            log(logId, `- Host: ${roomData.host}`);
+            log(logId, `- Players: ${Object.keys(roomData.players).length}`);
+
+            Object.values(roomData.players).forEach(player => {
+                const age = Date.now() - player.lastUpdate;
+                log(logId, `  * ${player.name} (${player.id.substr(0, 8)}...) - ${age}ms ago`);
+            });
+        }
+
+        function showLocalStorage() {
+            const storageLog = document.getElementById('storage-log');
+            storageLog.innerHTML = '<strong>localStorage Contents:</strong><br>';
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('pacman_room_')) {
+                    const value = localStorage.getItem(key);
+                    const roomData = JSON.parse(value);
+                    storageLog.innerHTML += `<br><strong>${key}:</strong><br>`;
+                    storageLog.innerHTML += `  Players: ${Object.keys(roomData.players).length}<br>`;
+                    storageLog.innerHTML += `  Created: ${new Date(roomData.created).toLocaleTimeString()}<br>`;
+                    storageLog.innerHTML += `  Host: ${roomData.host}<br>`;
+                }
+            }
+        }
+
+        function clearAllRooms() {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('pacman_room_')) {
+                    keys.push(key);
+                }
+            }
+
+            keys.forEach(key => localStorage.removeItem(key));
+            log('storage-log', `Cleared ${keys.length} rooms from localStorage`);
+        }
+
+        // Auto-refresh room status every 3 seconds
+        setInterval(() => {
+            if (currentRoomCode) {
+                const roomData = getRoomData(currentRoomCode);
+                if (roomData) {
+                    const playerCount = Object.keys(roomData.players).length;
+                    document.getElementById('room-code-1').textContent = `${currentRoomCode} (${playerCount} players)`;
+                }
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

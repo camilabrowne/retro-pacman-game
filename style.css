@@ -612,6 +612,28 @@ body::before {
     text-shadow: 0 0 3px #ffff00;
 }
 
+.debug-panel {
+    margin-top: 20px;
+    padding: 10px;
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid #ff0000;
+    font-size: 0.4em;
+}
+
+.debug-panel h4 {
+    color: #ff0000;
+    margin-bottom: 10px;
+}
+
+#debug-info {
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px;
+    max-height: 100px;
+    overflow-y: scroll;
+    font-family: monospace;
+    color: #ffffff;
+}
+
 /* Multiplayer Player Colors */
 .pacman-player1 { background-color: #ffff00 !important; }
 .pacman-player2 { background-color: #ff6b6b !important; }

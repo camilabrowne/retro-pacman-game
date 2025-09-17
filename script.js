@@ -131,13 +131,30 @@ class AsymmetricPacmanGame {
     loadPlayersFromRoom() {
         const roomData = this.getRoomData(this.roomCode);
         if (roomData) {
+            const previousPlayerCount = this.players.size;
             this.players.clear();
+
+            // Clean up stale players and load active ones
+            const activePlayerData = {};
             Object.values(roomData.players).forEach(playerData => {
                 // Remove stale players (older than 30 seconds)
                 if (Date.now() - playerData.lastUpdate < 30000) {
                     this.players.set(playerData.id, playerData);
+                    activePlayerData[playerData.id] = playerData;
                 }
             });
+
+            // Update room data with only active players
+            if (Object.keys(activePlayerData).length !== Object.keys(roomData.players).length) {
+                roomData.players = activePlayerData;
+                this.saveRoomData(this.roomCode, roomData);
+            }
+
+            // Log player count changes for debugging
+            if (this.players.size !== previousPlayerCount) {
+                console.log(`Player count changed: ${previousPlayerCount} -> ${this.players.size}`);
+            }
+
             this.updatePlayersList();
             this.updateStartButton();
         }
@@ -150,10 +167,13 @@ class AsymmetricPacmanGame {
 
         this.roomPollingInterval = setInterval(() => {
             if (this.roomCode && !this.gameRunning) {
+                console.log('Polling room:', this.roomCode);
                 this.updatePlayerHeartbeat();
                 this.loadPlayersFromRoom();
             }
         }, 2000); // Poll every 2 seconds
+
+        console.log('Started room polling for:', this.roomCode);
     }
 
     updatePlayerHeartbeat() {
@@ -279,6 +299,11 @@ class AsymmetricPacmanGame {
         this.restartBtn.addEventListener('click', () => {
             this.resetGame();
         });
+
+        // Debug panel controls
+        document.getElementById('show-localStorage-btn').addEventListener('click', () => {
+            this.showLocalStorageDebug();
+        });
     }
 
     showCreateRoom() {
@@ -292,9 +317,14 @@ class AsymmetricPacmanGame {
         this.isMultiplayer = true;
 
         // Create room data in localStorage
-        this.createRoomData(this.roomCode);
+        console.log('Creating room:', this.roomCode);
+        const roomData = this.createRoomData(this.roomCode);
+        console.log('Room created with data:', roomData);
         this.loadPlayersFromRoom();
         this.startRoomPolling();
+
+        // Show debug panel
+        document.getElementById('debug-panel').style.display = 'block';
     }
 
     showJoinRoom() {
@@ -381,16 +411,28 @@ class AsymmetricPacmanGame {
         // Try to join existing room using localStorage
         try {
             const roomData = this.getRoomData(roomCode);
+            console.log('Attempting to join room:', roomCode, roomData);
+
             if (!roomData) {
                 alert('Room not found. Please check the room code or ask the host to create the room first.');
-                this.backToLobby();
+                document.getElementById('connection-status').style.display = 'none';
+                return;
+            }
+
+            console.log('Found room with', Object.keys(roomData.players).length, 'players');
+
+            // Check if room is full
+            if (Object.keys(roomData.players).length >= this.maxPlayers) {
+                alert('Room is full! Maximum 4 players allowed.');
+                document.getElementById('connection-status').style.display = 'none';
                 return;
             }
 
             // Add yourself to the room
+            const playerNumber = Object.keys(roomData.players).length + 1;
             roomData.players[this.playerId] = {
                 id: this.playerId,
-                name: 'Player ' + (Object.keys(roomData.players).length + 1),
+                name: `Player ${playerNumber}`,
                 role: null,
                 x: 9,
                 y: 15,
@@ -403,15 +445,18 @@ class AsymmetricPacmanGame {
             };
 
             this.saveRoomData(roomCode, roomData);
+            console.log('Added self to room, now has', Object.keys(roomData.players).length, 'players');
+
             this.loadPlayersFromRoom();
             this.startRoomPolling();
 
             document.getElementById('connection-status').style.display = 'none';
             document.getElementById('room-controls').style.display = 'block';
+            document.getElementById('debug-panel').style.display = 'block';
         } catch (error) {
             console.error('Failed to join room:', error);
             alert('Failed to join room. Please try again.');
-            this.backToLobby();
+            document.getElementById('connection-status').style.display = 'none';
         }
     }
 
@@ -1127,6 +1172,40 @@ class AsymmetricPacmanGame {
 
         this.gameOverElement.style.display = 'none';
         this.startGame();
+    }
+
+    showLocalStorageDebug() {
+        const debugInfo = document.getElementById('debug-info');
+        debugInfo.innerHTML = '<strong>localStorage Debug:</strong><br>';
+
+        // Show all pacman room data
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('pacman_room_')) {
+                try {
+                    const value = localStorage.getItem(key);
+                    const roomData = JSON.parse(value);
+                    debugInfo.innerHTML += `<br><strong>${key}:</strong><br>`;
+                    debugInfo.innerHTML += `  Players: ${Object.keys(roomData.players).length}<br>`;
+                    debugInfo.innerHTML += `  Created: ${new Date(roomData.created).toLocaleTimeString()}<br>`;
+                    debugInfo.innerHTML += `  Host: ${roomData.host}<br>`;
+
+                    // Show each player
+                    Object.values(roomData.players).forEach(player => {
+                        const age = Date.now() - player.lastUpdate;
+                        debugInfo.innerHTML += `  - ${player.name} (${age}ms ago)<br>`;
+                    });
+                } catch (e) {
+                    debugInfo.innerHTML += `<br>Error parsing ${key}: ${e.message}<br>`;
+                }
+            }
+        }
+
+        debugInfo.innerHTML += `<br><strong>Current State:</strong><br>`;
+        debugInfo.innerHTML += `Room Code: ${this.roomCode}<br>`;
+        debugInfo.innerHTML += `Player ID: ${this.playerId}<br>`;
+        debugInfo.innerHTML += `Is Host: ${this.isHost}<br>`;
+        debugInfo.innerHTML += `Players in memory: ${this.players.size}<br>`;
     }
 }
 
