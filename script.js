@@ -68,6 +68,7 @@ class AsymmetricPacmanGame {
         this.pelletsEaten = 0;
         this.gameLoopId = null;
         this.powerPelletTimer = 0;
+        this.roomPollingInterval = null;
 
         // Initialize the game
         this.initGame();
@@ -79,6 +80,100 @@ class AsymmetricPacmanGame {
 
     generateRoomCode() {
         return Math.floor(100000 + Math.random() * 900000).toString();
+    }
+
+    getRoomData(roomCode) {
+        try {
+            const data = localStorage.getItem(`pacman_room_${roomCode}`);
+            return data ? JSON.parse(data) : null;
+        } catch (error) {
+            console.error('Error reading room data:', error);
+            return null;
+        }
+    }
+
+    saveRoomData(roomCode, data) {
+        try {
+            localStorage.setItem(`pacman_room_${roomCode}`, JSON.stringify(data));
+        } catch (error) {
+            console.error('Error saving room data:', error);
+        }
+    }
+
+    createRoomData(roomCode) {
+        const roomData = {
+            roomCode: roomCode,
+            host: this.playerId,
+            created: Date.now(),
+            gameStarted: false,
+            players: {}
+        };
+
+        // Add host as first player
+        roomData.players[this.playerId] = {
+            id: this.playerId,
+            name: 'Host (You)',
+            role: null,
+            x: 9,
+            y: 15,
+            direction: 'right',
+            score: 0,
+            lives: 3,
+            scared: false,
+            scaredTimer: 0,
+            lastUpdate: Date.now()
+        };
+
+        this.saveRoomData(roomCode, roomData);
+        return roomData;
+    }
+
+    loadPlayersFromRoom() {
+        const roomData = this.getRoomData(this.roomCode);
+        if (roomData) {
+            this.players.clear();
+            Object.values(roomData.players).forEach(playerData => {
+                // Remove stale players (older than 30 seconds)
+                if (Date.now() - playerData.lastUpdate < 30000) {
+                    this.players.set(playerData.id, playerData);
+                }
+            });
+            this.updatePlayersList();
+            this.updateStartButton();
+        }
+    }
+
+    startRoomPolling() {
+        if (this.roomPollingInterval) {
+            clearInterval(this.roomPollingInterval);
+        }
+
+        this.roomPollingInterval = setInterval(() => {
+            if (this.roomCode && !this.gameRunning) {
+                this.updatePlayerHeartbeat();
+                this.loadPlayersFromRoom();
+            }
+        }, 2000); // Poll every 2 seconds
+    }
+
+    updatePlayerHeartbeat() {
+        const roomData = this.getRoomData(this.roomCode);
+        if (roomData && roomData.players[this.playerId]) {
+            roomData.players[this.playerId].lastUpdate = Date.now();
+            this.saveRoomData(this.roomCode, roomData);
+        }
+    }
+
+    cleanupRoom() {
+        if (this.roomPollingInterval) {
+            clearInterval(this.roomPollingInterval);
+            this.roomPollingInterval = null;
+        }
+
+        if (this.roomCode && this.isHost) {
+            // Host cleans up the room
+            localStorage.removeItem(`pacman_room_${this.roomCode}`);
+        }
     }
 
     initGame() {
@@ -196,10 +291,10 @@ class AsymmetricPacmanGame {
         this.isHost = true;
         this.isMultiplayer = true;
 
-        // Add host as first player
-        this.addPlayer(this.playerId, 'Host (You)', null);
-        this.updatePlayersList();
-        this.updateStartButton();
+        // Create room data in localStorage
+        this.createRoomData(this.roomCode);
+        this.loadPlayersFromRoom();
+        this.startRoomPolling();
     }
 
     showJoinRoom() {
@@ -224,7 +319,8 @@ class AsymmetricPacmanGame {
     }
 
     backToLobby() {
-        // Clean up connections
+        // Clean up room and connections
+        this.cleanupRoom();
         this.peers.forEach(peer => peer.close());
         this.peers.clear();
         this.players.clear();
@@ -282,33 +378,43 @@ class AsymmetricPacmanGame {
         document.getElementById('connection-status').style.display = 'block';
         document.getElementById('connection-text').textContent = 'Connecting to room...';
 
-        // Simulate joining by creating mock players
-        setTimeout(() => {
-            this.addPlayer('host123', 'Host', null);
-            this.addPlayer(this.playerId, 'You', null);
-            this.updatePlayersList();
-            this.updateStartButton();
+        // Try to join existing room using localStorage
+        try {
+            const roomData = this.getRoomData(roomCode);
+            if (!roomData) {
+                alert('Room not found. Please check the room code or ask the host to create the room first.');
+                this.backToLobby();
+                return;
+            }
+
+            // Add yourself to the room
+            roomData.players[this.playerId] = {
+                id: this.playerId,
+                name: 'Player ' + (Object.keys(roomData.players).length + 1),
+                role: null,
+                x: 9,
+                y: 15,
+                direction: 'right',
+                score: 0,
+                lives: 3,
+                scared: false,
+                scaredTimer: 0,
+                lastUpdate: Date.now()
+            };
+
+            this.saveRoomData(roomCode, roomData);
+            this.loadPlayersFromRoom();
+            this.startRoomPolling();
+
             document.getElementById('connection-status').style.display = 'none';
             document.getElementById('room-controls').style.display = 'block';
-        }, 2000);
+        } catch (error) {
+            console.error('Failed to join room:', error);
+            alert('Failed to join room. Please try again.');
+            this.backToLobby();
+        }
     }
 
-    addPlayer(playerId, name, role) {
-        const player = {
-            id: playerId,
-            name: name,
-            role: role,
-            x: 9,
-            y: 15,
-            direction: 'right',
-            score: 0,
-            lives: 3,
-            scared: false,
-            scaredTimer: 0
-        };
-
-        this.players.set(playerId, player);
-    }
 
     assignRoles() {
         const playerIds = Array.from(this.players.keys());
